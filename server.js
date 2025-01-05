@@ -5,33 +5,25 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 dotenv.config();
 
-
-const bodyParser = require('body-parser');
+// Create express app first
+const app = express();
 
 // Comprehensive CORS configuration
+// CORS configuration
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    const allowedOrigins = [
-      'http://localhost:3000', 
-      'https://localhost:3000',
-      'https://ai.rossmguthrie.com',
-      'http://ai.rossmguthrie.com'
-    ];
-    
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'http://localhost:3000', 
+    'https://localhost:3000',
+    'https://ai.rossmguthrie.com',
+    'http://ai.rossmguthrie.com'
+  ],
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Middleware for parsing JSON
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
