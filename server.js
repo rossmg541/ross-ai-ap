@@ -5,7 +5,7 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const cors = require('cors');
+
 const bodyParser = require('body-parser');
 
 // Comprehensive CORS configuration
