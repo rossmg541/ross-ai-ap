@@ -9,8 +9,6 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
-const app = express();
-
 // Comprehensive CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
