@@ -5,7 +5,6 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
