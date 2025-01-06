@@ -64,9 +64,10 @@ async function searchContent(query) {
         version: '1',
         strict: true,
         deprecationErrors: true
-      }
+      },
+      tls: true,
+      tlsCAFile: null
     };
-
     client = await MongoClient.connect(mongoUri, options);
     console.log('MongoDB connected successfully');
 
