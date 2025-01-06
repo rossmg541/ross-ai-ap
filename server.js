@@ -59,7 +59,10 @@ async function searchContent(query) {
     console.log('Attempting MongoDB connection...');
     client = await MongoClient.connect(mongoUri, {
       useNewUrlParser: true,
-      useUnifiedTopology: true
+      useUnifiedTopology: true,
+      ssl: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true
     });
     console.log('MongoDB connected successfully');
 
