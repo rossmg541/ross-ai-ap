@@ -61,12 +61,10 @@ async function searchContent(query) {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       serverApi: {
-        version: '1',
-        strict: true,
+        version: '2',  // Changed from '1' to '2'
+        strict: false, // Changed from true to false
         deprecationErrors: true
-      },
-      tls: true,
-      tlsCAFile: null
+      }
     };
     client = await MongoClient.connect(mongoUri, options);
     console.log('MongoDB connected successfully');
