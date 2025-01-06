@@ -59,12 +59,7 @@ async function searchContent(query) {
     console.log('Attempting MongoDB connection...');
     const options = {
       useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverApi: {
-        version: '2',  // Changed from '1' to '2'
-        strict: false, // Changed from true to false
-        deprecationErrors: true
-      }
+      useUnifiedTopology: true
     };
     client = await MongoClient.connect(mongoUri, options);
     console.log('MongoDB connected successfully');
