@@ -54,34 +54,39 @@ Query: ${query}`;
 }
 
 async function searchContent(query) {
-  console.log('Searching for:', query);
-  const client = await MongoClient.connect(mongoUri);
-  const collection = client.db('ross-ai').collection('content');
-  const queryEmbedding = await createEmbedding(query);
-  
-  console.log('Generated embedding, searching MongoDB...');
-  
-  const results = await collection.aggregate([
-    {
-      $vectorSearch: {
-        index: "ross-ai-knowledge-index1",
-        path: "embedding",
-        queryVector: queryEmbedding,
-        numCandidates: 10,
-        limit: 3
+  let client;
+  try {
+    console.log('Attempting MongoDB connection...');
+    client = await MongoClient.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('MongoDB connected successfully');
+
+    const collection = client.db('ross-ai').collection('content');
+    const queryEmbedding = await createEmbedding(query);
+    
+    const results = await collection.aggregate([
+      {
+        $vectorSearch: {
+          index: "ross-ai-knowledge-index1",
+          path: "embedding",
+          queryVector: queryEmbedding,
+          numCandidates: 10,
+          limit: 3
+        }
       }
-    }
-  ]).toArray();
+    ]).toArray();
 
-  console.log('Found relevant documents:', results.length);
+    console.log('Query results:', results.length);
+    return results.length > 0 ? [{ text: await generateNaturalResponse(query, results) }] : [];
 
-  if (results.length > 0) {
-    console.log('Generating natural response...');
-    const response = await generateNaturalResponse(query, results);
-    return [{ text: response }];
+  } catch (error) {
+    console.error('Detailed error in searchContent:', error);
+    throw error;
+  } finally {
+    if (client) await client.close();
   }
-
-  return [];
 }
 
 // Rest of your routes...
