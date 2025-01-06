@@ -61,8 +61,12 @@ async function searchContent(query) {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       ssl: true,
-      tlsAllowInvalidCertificates: true,
-      tlsAllowInvalidHostnames: true
+      tls: true,
+      directConnection: false,
+      replicaSet: 'atlas-y557z7-shard-0',
+      authSource: 'admin',
+      retryWrites: true,
+      w: 'majority'
     });
     console.log('MongoDB connected successfully');
 
