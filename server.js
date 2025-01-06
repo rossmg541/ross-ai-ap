@@ -57,17 +57,17 @@ async function searchContent(query) {
   let client;
   try {
     console.log('Attempting MongoDB connection...');
-    client = await MongoClient.connect(mongoUri, {
+    const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      ssl: true,
-      tls: true,
-      directConnection: false,
-      replicaSet: 'atlas-y557z7-shard-0',
-      authSource: 'admin',
-      retryWrites: true,
-      w: 'majority'
-    });
+      serverApi: {
+        version: '1',
+        strict: true,
+        deprecationErrors: true
+      }
+    };
+
+    client = await MongoClient.connect(mongoUri, options);
     console.log('MongoDB connected successfully');
 
     const collection = client.db('ross-ai').collection('content');
