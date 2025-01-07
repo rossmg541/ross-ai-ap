@@ -12,6 +12,10 @@ const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true
 };
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 app.use(cors({
   origin: [
@@ -118,9 +122,4 @@ app.post('/api/search', async (req, res) => {
     console.error('Search error:', error);
     res.status(500).json({ error: 'Search failed', details: error.message });
   }
-});
-
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
