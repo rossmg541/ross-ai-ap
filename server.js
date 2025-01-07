@@ -18,16 +18,11 @@ app.listen(PORT, () => {
 });
 
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'https://localhost:3000',
-    'https://ai.rossmguthrie.com',
-    'http://ai.rossmguthrie.com'
-  ],
+  origin: ['http://localhost:3000', 'https://ai.rossmguthrie.com', 'http://ai.rossmguthrie.com'],
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type'],
+  credentials: true
 }));
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -110,6 +105,9 @@ async function searchContent(query) {
 
 // Rest of your routes...
 app.post('/api/search', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', 'https://ai.rossmguthrie.com');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
   try {
     const { query } = req.body;
     console.log('Server received query:', query);
