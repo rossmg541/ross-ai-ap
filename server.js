@@ -56,16 +56,20 @@ Query: ${query}`;
 async function searchContent(query) {
   let client;
   try {
-    console.log('Attempting MongoDB connection...');
-    const options = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    };
+    console.log('-----Debug Info-----');
+    console.log('Query:', query);
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('MongoDB URI (sanitized):', mongoUri.replace(/\/\/[^@]+@/, '//***:***@'));
+    
     client = await MongoClient.connect(mongoUri, options);
-    console.log('MongoDB connected successfully');
-
+    console.log('MongoDB Connected');
+    
     const collection = client.db('ross-ai').collection('content');
+    const count = await collection.countDocuments();
+    console.log('Documents in collection:', count);
+    
     const queryEmbedding = await createEmbedding(query);
+    console.log('Generated embedding vector of length:', queryEmbedding.length);
     
     const results = await collection.aggregate([
       {
@@ -79,11 +83,17 @@ async function searchContent(query) {
       }
     ]).toArray();
 
-    console.log('Query results:', results.length);
-    return results.length > 0 ? [{ text: await generateNaturalResponse(query, results) }] : [];
+    console.log('Vector search results:', results.length);
+    console.log('First result preview:', results[0] ? results[0].text.substring(0, 100) : 'No results');
+    console.log('------------------');
 
+    if (results.length > 0) {
+      const response = await generateNaturalResponse(query, results);
+      return [{ text: response }];
+    }
+    return [];
   } catch (error) {
-    console.error('Detailed error in searchContent:', error);
+    console.error('Detailed search error:', error);
     throw error;
   } finally {
     if (client) await client.close();
