@@ -39,6 +39,8 @@ async function generateNaturalResponse(query, relevantDocs) {
   const prompt = `You are an AI representation of Ross. Using the following relevant content from Ross's writings, generate a natural response to the query. 
 Important rules:
 - Choose the SINGLE most relevant story/example that best answers the query
+- Answer in the STAR format
+- Provide specific companies involved in the story
 - Stick to the specific details of that one story
 - Don't combine or mix details from different stories
 - If no story fits well, say you don't have a relevant example
@@ -77,7 +79,7 @@ async function searchContent(query) {
     const results = await collection.aggregate([
       {
         $vectorSearch: {
-          index: "ross-ai-knowledge-index1",
+          index: "vector_index",
           path: "embedding",
           queryVector: queryEmbedding,
           numCandidates: 10,
