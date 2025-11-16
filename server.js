@@ -12,10 +12,6 @@ const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true
 };
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
 
 app.use(cors({
   origin: ['http://localhost:3000', 'https://ai.rossmguthrie.com', 'http://ai.rossmguthrie.com'],
@@ -36,26 +32,84 @@ async function createEmbedding(text) {
 }
 
 async function generateNaturalResponse(query, relevantDocs) {
-  const prompt = `You are an AI representation of Ross. Using the following relevant content from Ross's writings, generate a natural response to the query. 
-Important rules:
-- Choose the SINGLE most relevant story/example that best answers the query
-- Answer in the STAR format
-- Provide specific companies involved in the story
-- Stick to the specific details of that one story
-- Don't combine or mix details from different stories
-- If no story fits well, say you don't have a relevant example
+  const contextText = relevantDocs.map(d => d.text).join('\n\n');
+  
+  // Step 1: Generate initial response
+  const initialResponse = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [{
+      role: "system",
+      content: `You are Ross M.G. Generate a response based on the context provided from your writings and experiences. Answer in first person, be conversational and specific.
 
-Context from Ross's writings:
-${relevantDocs.map(d => d.text).join('\n\n')}
-
-Query: ${query}`;
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo",
-    messages: [{ role: "user", content: prompt }]
+FORMATTING RULES (always follow):
+- Use short paragraphs (2-3 sentences max)
+- Add a blank line between paragraphs for readability
+- Use bullet points (•) when listing 3+ items
+- Bold key terms or important phrases for emphasis
+- Keep total response to 3-4 paragraphs unless the question requires more detail
+- For experience questions, naturally weave in situation, action, and result
+- End with a relevant follow-up question if appropriate`
+    }, {
+      role: "user",
+      content: `Context from your writings: ${contextText}\n\nQuestion: ${query}`
+    }],
+    temperature: 0.7
   });
 
-  return completion.choices[0].message.content;
+  const draft = initialResponse.choices[0].message.content;
+
+  // Step 2: Critique the response
+  const critiqueResponse = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [{
+      role: "system",
+      content: `You are a critical editor reviewing Ross's response. Analyze:
+- Does it accurately reflect the context provided?
+- Is it natural and conversational as Ross speaking in first person?
+- Are there factual errors or inconsistencies?
+- Could it be more specific or engaging?
+- Does it stay true to Ross's voice and experiences?
+- Does it follow the formatting rules (short paragraphs, bullet points, bold text, proper structure)?`
+    }, {
+      role: "user",
+      content: `Original question: ${query}\n\nContext: ${contextText}\n\nDraft response: ${draft}\n\nProvide constructive critique.`
+    }],
+    temperature: 0.3
+  });
+
+  const critique = critiqueResponse.choices[0].message.content;
+
+  // Step 3: Generate improved response
+  const finalResponse = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [{
+      role: "system",
+      content: `You are Ross M.G. Revise your response based on the critique to make it better, more accurate, and more engaging.
+
+FORMATTING RULES (always follow):
+- Use short paragraphs (2-3 sentences max)
+- Add a blank line between paragraphs for readability
+- Use bullet points (•) when listing 3+ items
+- Bold key terms or important phrases for emphasis
+- Keep total response to 3-4 paragraphs unless the question requires more detail
+- For experience questions, naturally weave in situation, action, and result
+- End with a relevant follow-up question if appropriate`
+    }, {
+      role: "user",
+      content: `Question: ${query}
+      
+Context from your writings: ${contextText}
+
+Your draft: ${draft}
+
+Critique: ${critique}
+
+Now write an improved response addressing the critique.`
+    }],
+    temperature: 0.7
+  });
+
+  return finalResponse.choices[0].message.content;
 }
 
 async function searchContent(query) {
@@ -73,20 +127,70 @@ async function searchContent(query) {
     const count = await collection.countDocuments();
     console.log('Documents in collection:', count);
     
+    // Debug: Look at document structure
+    const sampleDoc = await collection.findOne();
+    console.log('Sample document structure:', Object.keys(sampleDoc || {}));
+    if (sampleDoc?.text) {
+      console.log('Sample text preview:', sampleDoc.text.substring(0, 100));
+    }
+    
     const queryEmbedding = await createEmbedding(query);
     console.log('Generated embedding vector of length:', queryEmbedding.length);
     
-    const results = await collection.aggregate([
-      {
-        $vectorSearch: {
-          index: "vector_index",
-          path: "embedding",
-          queryVector: queryEmbedding,
-          numCandidates: 10,
-          limit: 3
+    // First try vector search
+    let results = [];
+    try {
+      results = await collection.aggregate([
+        {
+          $vectorSearch: {
+            index: "vector_index",
+            path: "embedding",
+            queryVector: queryEmbedding,
+            numCandidates: 10,
+            limit: 3
+          }
         }
+      ]).toArray();
+    } catch (vectorError) {
+      console.log('Vector search failed, trying text search fallback:', vectorError.message);
+      // Fallback to text search
+      results = await collection.find({
+        $text: { $search: query }
+      }).limit(3).toArray();
+    }
+    
+    // If no vector or text results, try simple regex search
+    if (results.length === 0) {
+      console.log('No results from vector or text search, trying regex search');
+      
+      // Extract key words from query and search for them
+      const keywords = query.toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 1 && !['tell', 'about', 'what', 'how', 'the', 'and', 'for', 'with', 'you', 'your', 'me', 'my'].includes(word));
+      
+      console.log('Extracted keywords:', keywords);
+      
+      if (keywords.length > 0) {
+        const regexPattern = keywords.join('|');
+        results = await collection.find({
+          text: { $regex: regexPattern, $options: 'i' }
+        }).limit(3).toArray();
       }
-    ]).toArray();
+      
+      // If still no results, try just the first meaningful word
+      if (results.length === 0 && keywords.length > 0) {
+        results = await collection.find({
+          text: { $regex: keywords[0], $options: 'i' }
+        }).limit(3).toArray();
+      }
+      
+      // Final fallback: get any documents if no keywords found
+      if (results.length === 0 && keywords.length === 0) {
+        console.log('No keywords found, returning sample documents');
+        results = await collection.find({}).limit(3).toArray();
+      }
+    }
 
     console.log('Vector search results:', results.length);
     console.log('First result preview:', results[0] ? results[0].text.substring(0, 100) : 'No results');
@@ -105,11 +209,8 @@ async function searchContent(query) {
   }
 }
 
-// Rest of your routes...
+// Search route
 app.post('/api/search', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'https://ai.rossmguthrie.com');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
   try {
     const { query } = req.body;
     console.log('Server received query:', query);
@@ -122,4 +223,18 @@ app.post('/api/search', async (req, res) => {
     console.error('Search error:', error);
     res.status(500).json({ error: 'Search failed', details: error.message });
   }
+});
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Start the server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
