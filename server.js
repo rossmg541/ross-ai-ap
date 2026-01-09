@@ -225,9 +225,109 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
+// Market Localizer - Generate campaign variations
+app.post('/api/generate-campaign', async (req, res) => {
+  try {
+    const { campaign, industry, markets } = req.body;
+
+    console.log('Generating campaign variations for:', { campaign, industry, markets });
+
+    // Validate input
+    if (!campaign || !industry || !markets || markets.length < 2) {
+      return res.status(400).json({
+        error: 'Invalid request. Campaign, industry, and at least 2 markets required.'
+      });
+    }
+
+    // Market cultural adaptations
+    const marketAdaptations = {
+      us: ['Bold, direct messaging', 'Red/white/blue accent colors', 'Action-oriented CTAs'],
+      japan: ['Minimal text overlay', 'Soft color palette', 'Group harmony themes'],
+      germany: ['Technical specifications prominent', 'Clean, structured layout', 'Quality certifications visible'],
+      brazil: ['Vibrant colors and energy', 'Community and celebration themes', 'Warm, personal tone'],
+      uae: ['Luxury positioning', 'Gold accent colors', 'Premium imagery and styling'],
+      uk: ['Clever wordplay', 'Heritage visual cues', 'Understated elegance']
+    };
+
+    const marketInfo = {
+      us: { name: 'United States', culture: 'Direct, value-focused' },
+      japan: { name: 'Japan', culture: 'Subtle, harmony-oriented' },
+      germany: { name: 'Germany', culture: 'Technical, quality-driven' },
+      brazil: { name: 'Brazil', culture: 'Vibrant, emotional' },
+      uae: { name: 'UAE', culture: 'Luxury, aspirational' },
+      uk: { name: 'United Kingdom', culture: 'Witty, understated' }
+    };
+
+    // Generate variations for each market
+    const variations = markets.map(marketId => {
+      const market = marketInfo[marketId];
+      const adaptations = marketAdaptations[marketId] || [];
+
+      // Generate culturally-adapted prompt
+      const prompts = {
+        us: `${campaign}, bold and direct style, red white blue accents, aspirational lifestyle`,
+        japan: `${campaign}, minimalist japanese aesthetic, soft colors, harmonious composition`,
+        germany: `${campaign}, clean technical style, precision and quality focus, structured layout`,
+        brazil: `${campaign}, vibrant and energetic, warm colors, celebration and community`,
+        uae: `${campaign}, luxury premium style, gold accents, sophisticated and aspirational`,
+        uk: `${campaign}, refined british aesthetic, heritage elements, understated elegance`
+      };
+
+      const prompt = prompts[marketId] || campaign;
+
+      // TODO: Replace with actual image generation API call
+      // For now, use placeholder with market-specific colors
+      const placeholderColors = {
+        us: '1d3557/e63946',
+        japan: 'f1faee/e63946',
+        germany: '457b9d/1d3557',
+        brazil: 'e63946/f1faee',
+        uae: '1d3557/FFD700',
+        uk: '457b9d/e63946'
+      };
+
+      const imageUrl = `https://placehold.co/800x600/${placeholderColors[marketId]}?text=${encodeURIComponent(market.name)}`;
+
+      return {
+        market: market.name,
+        culture: market.culture,
+        adaptations,
+        imageUrl,
+        prompt
+      };
+    });
+
+    // Calculate metrics
+    const traditionalHours = markets.length * 8;
+    const aiHours = markets.length * 0.5;
+    const costPerHour = 75;
+
+    const metrics = {
+      timeSaved: traditionalHours - aiHours,
+      costSaved: (traditionalHours - aiHours) * costPerHour,
+      speedIncrease: Math.round((traditionalHours / aiHours) * 100),
+      assetsCreated: markets.length
+    };
+
+    console.log('Generated variations:', variations.length);
+
+    res.json({
+      variations,
+      metrics
+    });
+
+  } catch (error) {
+    console.error('Campaign generation error:', error);
+    res.status(500).json({
+      error: 'Failed to generate campaign variations',
+      details: error.message
+    });
+  }
+});
+
 // Health check route
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
+  res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString()
   });
