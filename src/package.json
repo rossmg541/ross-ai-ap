@@ -2,12 +2,12 @@
   "name": "ross-ai-api",
   "version": "1.0.0",
   "type": "module",
-  "main": "../server.js",
+  "main": "server.js",
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
-    "start": "cd .. && node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
