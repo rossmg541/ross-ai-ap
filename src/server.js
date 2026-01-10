@@ -3,11 +3,13 @@ import cors from 'cors';
 import { OpenAI } from 'openai';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
+import fetch from 'node-fetch';
 dotenv.config();
 
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const mongoUri = process.env.MONGODB_URI;
+const geminiApiKey = process.env.IMAGE_API_KEY;
 const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -225,6 +227,55 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
+// Helper function to generate image using Gemini API
+async function generateImageWithGemini(prompt) {
+  try {
+    // Gemini API endpoint for image generation (Imagen)
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${geminiApiKey}`;
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        instances: [{
+          prompt: prompt
+        }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: '4:3',
+          safetyFilterLevel: 'block_some',
+          personGeneration: 'allow_adult'
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+      // Return placeholder if API fails
+      return null;
+    }
+
+    const data = await response.json();
+
+    // Extract image URL or base64 from response
+    if (data.predictions && data.predictions.length > 0) {
+      const prediction = data.predictions[0];
+      // Return the image URL or base64 data
+      return prediction.bytesBase64Encoded
+        ? `data:image/png;base64,${prediction.bytesBase64Encoded}`
+        : prediction.mimeType;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error generating image with Gemini:', error.message);
+    return null;
+  }
+}
+
 // Market Localizer - Generate campaign variations
 app.post('/api/generate-campaign', async (req, res) => {
   try {
@@ -259,7 +310,7 @@ app.post('/api/generate-campaign', async (req, res) => {
     };
 
     // Generate variations for each market
-    const variations = markets.map(marketId => {
+    const variationPromises = markets.map(async (marketId) => {
       const market = marketInfo[marketId];
       const adaptations = marketAdaptations[marketId] || [];
 
@@ -275,18 +326,24 @@ app.post('/api/generate-campaign', async (req, res) => {
 
       const prompt = prompts[marketId] || campaign;
 
-      // TODO: Replace with actual image generation API call
-      // For now, use placeholder with market-specific colors
-      const placeholderColors = {
-        us: '1d3557/e63946',
-        japan: 'f1faee/e63946',
-        germany: '457b9d/1d3557',
-        brazil: 'e63946/f1faee',
-        uae: '1d3557/FFD700',
-        uk: '457b9d/e63946'
-      };
+      // Generate image with Gemini API
+      let imageUrl = null;
+      if (geminiApiKey) {
+        imageUrl = await generateImageWithGemini(prompt);
+      }
 
-      const imageUrl = `https://placehold.co/800x600/${placeholderColors[marketId]}?text=${encodeURIComponent(market.name)}`;
+      // Fallback to placeholder if image generation fails or no API key
+      if (!imageUrl) {
+        const placeholderColors = {
+          us: '1d3557/e63946',
+          japan: 'f1faee/e63946',
+          germany: '457b9d/1d3557',
+          brazil: 'e63946/f1faee',
+          uae: '1d3557/FFD700',
+          uk: '457b9d/e63946'
+        };
+        imageUrl = `https://placehold.co/800x600/${placeholderColors[marketId]}?text=${encodeURIComponent(market.name)}`;
+      }
 
       return {
         market: market.name,
@@ -296,6 +353,9 @@ app.post('/api/generate-campaign', async (req, res) => {
         prompt
       };
     });
+
+    // Wait for all image generation to complete
+    const variations = await Promise.all(variationPromises);
 
     // Calculate metrics
     const traditionalHours = markets.length * 8;
