@@ -15,6 +15,12 @@ const options = {
   useUnifiedTopology: true
 };
 
+// Log environment variable status on startup
+console.log('Environment variables check:');
+console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET');
+console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
+console.log('- IMAGE_API_KEY:', process.env.IMAGE_API_KEY ? `SET (${process.env.IMAGE_API_KEY.substring(0, 20)}...)` : 'NOT SET');
+
 app.use(cors({
   origin: ['http://localhost:3000', 'https://ai.rossmguthrie.com', 'http://ai.rossmguthrie.com'],
   methods: ['GET', 'POST', 'OPTIONS'],
