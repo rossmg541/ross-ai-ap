@@ -230,8 +230,8 @@ app.post('/api/search', async (req, res) => {
 // Helper function to generate image using Gemini API
 async function generateImageWithGemini(prompt) {
   try {
-    // Gemini API endpoint for image generation (Imagen)
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${geminiApiKey}`;
+    // Try Gemini 2.5 Flash Image generation model
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiApiKey}`;
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -239,14 +239,16 @@ async function generateImageWithGemini(prompt) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        instances: [{
-          prompt: prompt
+        contents: [{
+          parts: [{
+            text: `Generate an image: ${prompt}`
+          }]
         }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: '4:3',
-          safetyFilterLevel: 'block_some',
-          personGeneration: 'allow_adult'
+        generationConfig: {
+          temperature: 1.0,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 8192
         }
       })
     });
@@ -260,15 +262,20 @@ async function generateImageWithGemini(prompt) {
 
     const data = await response.json();
 
-    // Extract image URL or base64 from response
-    if (data.predictions && data.predictions.length > 0) {
-      const prediction = data.predictions[0];
-      // Return the image URL or base64 data
-      return prediction.bytesBase64Encoded
-        ? `data:image/png;base64,${prediction.bytesBase64Encoded}`
-        : prediction.mimeType;
+    // Extract image from inline_data if present
+    if (data.candidates && data.candidates.length > 0) {
+      const candidate = data.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inline_data && part.inline_data.data) {
+            const mimeType = part.inline_data.mime_type || 'image/png';
+            return `data:${mimeType};base64,${part.inline_data.data}`;
+          }
+        }
+      }
     }
 
+    console.log('No image data found in Gemini response');
     return null;
   } catch (error) {
     console.error('Error generating image with Gemini:', error.message);
