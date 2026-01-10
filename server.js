@@ -9,7 +9,6 @@ dotenv.config();
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const mongoUri = process.env.MONGODB_URI;
-const geminiApiKey = process.env.IMAGE_API_KEY;
 const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -19,7 +18,6 @@ const options = {
 console.log('Environment variables check:');
 console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET');
 console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
-console.log('- IMAGE_API_KEY:', process.env.IMAGE_API_KEY ? `SET (${process.env.IMAGE_API_KEY.substring(0, 20)}...)` : 'NOT SET');
 
 app.use(cors({
   origin: ['http://localhost:3000', 'https://ai.rossmguthrie.com', 'http://ai.rossmguthrie.com'],
@@ -233,55 +231,29 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
-// Helper function to generate image using Gemini API
-async function generateImageWithGemini(prompt) {
+// Helper function to generate image using OpenAI DALL-E
+async function generateImageWithDallE(prompt) {
   try {
-    // Use Imagen 4.0 with correct API format
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:generateImages`;
+    console.log('Generating image with DALL-E 3...');
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': geminiApiKey
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          aspectRatio: '4:3',
-          negativePrompt: 'blurry, low quality, distorted',
-          safetyFilterLevel: 'BLOCK_ONLY_HIGH',
-          personGeneration: 'ALLOW_ADULT'
-        }
-      })
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "standard"
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini Imagen API error:', response.status, errorText);
-      // Return placeholder if API fails
-      return null;
+    if (response.data && response.data.length > 0) {
+      const imageUrl = response.data[0].url;
+      console.log('DALL-E image generated successfully');
+      return imageUrl;
     }
 
-    const data = await response.json();
-    console.log('Gemini API response structure:', JSON.stringify(data).substring(0, 200));
-
-    // Extract image from response - try multiple possible response formats
-    if (data.generatedImages && data.generatedImages.length > 0) {
-      const image = data.generatedImages[0];
-      if (image.bytesBase64Encoded) {
-        return `data:image/png;base64,${image.bytesBase64Encoded}`;
-      }
-      if (image.image && image.image.bytesBase64Encoded) {
-        return `data:image/png;base64,${image.image.bytesBase64Encoded}`;
-      }
-    }
-
-    console.log('No image data found in Gemini response');
+    console.log('No image data found in DALL-E response');
     return null;
   } catch (error) {
-    console.error('Error generating image with Gemini:', error.message);
+    console.error('Error generating image with DALL-E:', error.message);
     return null;
   }
 }
@@ -336,15 +308,11 @@ app.post('/api/generate-campaign', async (req, res) => {
 
       const prompt = prompts[marketId] || campaign;
 
-      // Generate image with Gemini API
+      // Generate image with DALL-E
       let imageUrl = null;
-      if (geminiApiKey) {
-        console.log(`Attempting to generate image for ${marketId} with prompt:`, prompt);
-        imageUrl = await generateImageWithGemini(prompt);
-        console.log(`Image generation result for ${marketId}:`, imageUrl ? 'SUCCESS (base64 data)' : 'FAILED (null)');
-      } else {
-        console.log('No IMAGE_API_KEY found, skipping image generation');
-      }
+      console.log(`Attempting to generate image for ${marketId} with prompt:`, prompt);
+      imageUrl = await generateImageWithDallE(prompt);
+      console.log(`Image generation result for ${marketId}:`, imageUrl ? 'SUCCESS' : 'FAILED (null)');
 
       // Fallback to placeholder if image generation fails or no API key
       if (!imageUrl) {
