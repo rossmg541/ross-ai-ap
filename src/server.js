@@ -333,7 +333,11 @@ app.post('/api/generate-campaign', async (req, res) => {
       // Generate image with Gemini API
       let imageUrl = null;
       if (geminiApiKey) {
+        console.log(`Attempting to generate image for ${marketId} with prompt:`, prompt);
         imageUrl = await generateImageWithGemini(prompt);
+        console.log(`Image generation result for ${marketId}:`, imageUrl ? 'SUCCESS (base64 data)' : 'FAILED (null)');
+      } else {
+        console.log('No IMAGE_API_KEY found, skipping image generation');
       }
 
       // Fallback to placeholder if image generation fails or no API key
