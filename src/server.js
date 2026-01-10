@@ -230,48 +230,45 @@ app.post('/api/search', async (req, res) => {
 // Helper function to generate image using Gemini API
 async function generateImageWithGemini(prompt) {
   try {
-    // Try Gemini 2.5 Flash Image generation model
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiApiKey}`;
+    // Use Imagen 4.0 with correct API format
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:generateImages`;
 
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': geminiApiKey
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `Generate an image: ${prompt}`
-          }]
-        }],
-        generationConfig: {
-          temperature: 1.0,
-          topP: 0.95,
-          topK: 40,
-          maxOutputTokens: 8192
+        prompt: prompt,
+        config: {
+          numberOfImages: 1,
+          aspectRatio: '4:3',
+          negativePrompt: 'blurry, low quality, distorted',
+          safetyFilterLevel: 'BLOCK_ONLY_HIGH',
+          personGeneration: 'ALLOW_ADULT'
         }
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
+      console.error('Gemini Imagen API error:', response.status, errorText);
       // Return placeholder if API fails
       return null;
     }
 
     const data = await response.json();
+    console.log('Gemini API response structure:', JSON.stringify(data).substring(0, 200));
 
-    // Extract image from inline_data if present
-    if (data.candidates && data.candidates.length > 0) {
-      const candidate = data.candidates[0];
-      if (candidate.content && candidate.content.parts) {
-        for (const part of candidate.content.parts) {
-          if (part.inline_data && part.inline_data.data) {
-            const mimeType = part.inline_data.mime_type || 'image/png';
-            return `data:${mimeType};base64,${part.inline_data.data}`;
-          }
-        }
+    // Extract image from response - try multiple possible response formats
+    if (data.generatedImages && data.generatedImages.length > 0) {
+      const image = data.generatedImages[0];
+      if (image.bytesBase64Encoded) {
+        return `data:image/png;base64,${image.bytesBase64Encoded}`;
+      }
+      if (image.image && image.image.bytesBase64Encoded) {
+        return `data:image/png;base64,${image.image.bytesBase64Encoded}`;
       }
     }
 
