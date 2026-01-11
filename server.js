@@ -231,29 +231,51 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
-// Helper function to generate image using OpenAI DALL-E
-async function generateImageWithDallE(prompt) {
+// Helper function to generate image using Google Imagen 4
+async function generateImageWithImagen(prompt) {
   try {
-    console.log('Generating image with DALL-E 3...');
-
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard"
-    });
-
-    if (response.data && response.data.length > 0) {
-      const imageUrl = response.data[0].url;
-      console.log('DALL-E image generated successfully');
-      return imageUrl;
+    const apiKey = process.env.IMAGE_API_KEY;
+    if (!apiKey) {
+      console.log('No IMAGE_API_KEY found, skipping image generation');
+      return null;
     }
 
-    console.log('No image data found in DALL-E response');
+    console.log('Generating image with Imagen 4...');
+
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict',
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: { sampleCount: 1 }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Imagen API error:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.predictions && data.predictions.length > 0) {
+      const base64Image = data.predictions[0].bytesBase64Encoded;
+      const imageDataUrl = `data:image/png;base64,${base64Image}`;
+      console.log('Imagen 4 image generated successfully');
+      return imageDataUrl;
+    }
+
+    console.log('No image data found in Imagen response');
     return null;
   } catch (error) {
-    console.error('Error generating image with DALL-E:', error.message);
+    console.error('Error generating image with Imagen:', error.message);
     return null;
   }
 }
@@ -308,10 +330,10 @@ app.post('/api/generate-campaign', async (req, res) => {
 
       const prompt = prompts[marketId] || campaign;
 
-      // Generate image with DALL-E
+      // Generate image with Imagen 4
       let imageUrl = null;
       console.log(`Attempting to generate image for ${marketId} with prompt:`, prompt);
-      imageUrl = await generateImageWithDallE(prompt);
+      imageUrl = await generateImageWithImagen(prompt);
       console.log(`Image generation result for ${marketId}:`, imageUrl ? 'SUCCESS' : 'FAILED (null)');
 
       // Fallback to placeholder if image generation fails or no API key
