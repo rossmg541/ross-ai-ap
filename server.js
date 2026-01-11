@@ -25,8 +25,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type'],
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase payload limit to handle base64 images (up to 50MB)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Add these functions back
 async function createEmbedding(text) {
