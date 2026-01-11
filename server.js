@@ -281,7 +281,7 @@ async function generateImageWithImagen(prompt) {
   }
 }
 
-// Helper function to generate variations from base image using Imagen 3
+// Helper function to generate variations from base image using Imagen 4
 async function generateImageVariation(prompt, baseImageBase64) {
   try {
     const apiKey = process.env.IMAGE_API_KEY;
@@ -290,10 +290,10 @@ async function generateImageVariation(prompt, baseImageBase64) {
       return null;
     }
 
-    console.log('Generating image variation with Imagen 3...');
+    console.log('Generating image variation with Imagen 4 and reference image...');
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-capability-001:predict',
+      'https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict',
       {
         method: 'POST',
         headers: {
@@ -302,9 +302,8 @@ async function generateImageVariation(prompt, baseImageBase64) {
         },
         body: JSON.stringify({
           instances: [{
-            prompt: prompt,
+            prompt: `${prompt}, matching the style and composition of the reference image[1]`,
             referenceImages: [{
-              referenceType: 1, // REFERENCE_TYPE_RAW
               referenceId: 1,
               referenceImage: {
                 bytesBase64Encoded: baseImageBase64
@@ -320,8 +319,10 @@ async function generateImageVariation(prompt, baseImageBase64) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Imagen 3 variation API error:', response.status, errorText);
-      return null;
+      console.error('Imagen 4 variation API error:', response.status, errorText);
+      // Fall back to regular generation without reference image
+      console.log('Falling back to text-to-image generation...');
+      return await generateImageWithImagen(prompt);
     }
 
     const data = await response.json();
@@ -329,7 +330,7 @@ async function generateImageVariation(prompt, baseImageBase64) {
     if (data.predictions && data.predictions.length > 0) {
       const base64Image = data.predictions[0].bytesBase64Encoded;
       const imageDataUrl = `data:image/png;base64,${base64Image}`;
-      console.log('Imagen 3 variation generated successfully');
+      console.log('Imagen 4 variation generated successfully');
       return imageDataUrl;
     }
 
