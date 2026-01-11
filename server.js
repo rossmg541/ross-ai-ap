@@ -231,7 +231,7 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
-// Helper function to generate image using Google Imagen 4
+// Helper function to generate image using Google Imagen 4 (text-to-image)
 async function generateImageWithImagen(prompt) {
   try {
     const apiKey = process.env.IMAGE_API_KEY;
@@ -280,12 +280,72 @@ async function generateImageWithImagen(prompt) {
   }
 }
 
+// Helper function to generate variations from base image using Imagen 3
+async function generateImageVariation(prompt, baseImageBase64) {
+  try {
+    const apiKey = process.env.IMAGE_API_KEY;
+    if (!apiKey) {
+      console.log('No IMAGE_API_KEY found, skipping image generation');
+      return null;
+    }
+
+    console.log('Generating image variation with Imagen 3...');
+
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-capability-001:predict',
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          instances: [{
+            prompt: prompt,
+            referenceImages: [{
+              referenceType: 1, // REFERENCE_TYPE_RAW
+              referenceId: 1,
+              referenceImage: {
+                bytesBase64Encoded: baseImageBase64
+              }
+            }]
+          }],
+          parameters: {
+            sampleCount: 1
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Imagen 3 variation API error:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.predictions && data.predictions.length > 0) {
+      const base64Image = data.predictions[0].bytesBase64Encoded;
+      const imageDataUrl = `data:image/png;base64,${base64Image}`;
+      console.log('Imagen 3 variation generated successfully');
+      return imageDataUrl;
+    }
+
+    console.log('No image data found in Imagen variation response');
+    return null;
+  } catch (error) {
+    console.error('Error generating image variation with Imagen:', error.message);
+    return null;
+  }
+}
+
 // Market Localizer - Generate campaign variations
 app.post('/api/generate-campaign', async (req, res) => {
   try {
-    const { campaign, industry, markets } = req.body;
+    const { campaign, industry, markets, baseImage } = req.body;
 
-    console.log('Generating campaign variations for:', { campaign, industry, markets });
+    console.log('Generating campaign variations for:', { campaign, industry, markets, hasBaseImage: !!baseImage });
 
     // Validate input
     if (!campaign || !industry || !markets || markets.length < 2) {
@@ -330,10 +390,15 @@ app.post('/api/generate-campaign', async (req, res) => {
 
       const prompt = prompts[marketId] || campaign;
 
-      // Generate image with Imagen 4
+      // Generate image with Imagen (use variation if base image provided, otherwise text-to-image)
       let imageUrl = null;
-      console.log(`Attempting to generate image for ${marketId} with prompt:`, prompt);
-      imageUrl = await generateImageWithImagen(prompt);
+      if (baseImage) {
+        console.log(`Attempting to generate variation for ${marketId} with base image and prompt:`, prompt);
+        imageUrl = await generateImageVariation(prompt, baseImage);
+      } else {
+        console.log(`Attempting to generate image for ${marketId} with prompt:`, prompt);
+        imageUrl = await generateImageWithImagen(prompt);
+      }
       console.log(`Image generation result for ${marketId}:`, imageUrl ? 'SUCCESS' : 'FAILED (null)');
 
       // Fallback to placeholder if image generation fails or no API key
