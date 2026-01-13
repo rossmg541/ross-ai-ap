@@ -495,6 +495,26 @@ app.post('/api/upload-to-frameio', async (req, res) => {
 
     console.log('Uploading to Frame.io project:', projectId);
 
+    // First, verify we can access the project
+    try {
+      const projectResponse = await axios.get(
+        `https://api.frame.io/v2/projects/${projectId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+      console.log('Project access verified:', projectResponse.data.name);
+    } catch (verifyError) {
+      console.error('Cannot access project:', verifyError.response?.data);
+      return res.status(403).json({
+        error: 'Cannot access Frame.io project',
+        details: verifyError.response?.data,
+        projectId: projectId
+      });
+    }
+
     const uploadResults = [];
 
     // Upload each variation to its own folder
