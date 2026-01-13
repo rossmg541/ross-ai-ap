@@ -506,7 +506,7 @@ app.post('/api/upload-to-frameio', async (req, res) => {
       const folderName = `${campaign.substring(0, 30)} - ${marketName}`;
 
       const folderResponse = await axios.post(
-        'https://api.frame.io/v4/assets',
+        'https://api.frame.io/v2/assets',
         {
           name: folderName,
           type: 'folder',
@@ -530,7 +530,7 @@ app.post('/api/upload-to-frameio', async (req, res) => {
 
       // Step 3: Create the asset
       const assetResponse = await axios.post(
-        'https://api.frame.io/v4/assets',
+        'https://api.frame.io/v2/assets',
         {
           name: `${marketName}_variation.png`,
           type: 'file',
@@ -572,7 +572,7 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
 **Image Prompt:** ${variation.prompt}`;
 
       await axios.post(
-        `https://api.frame.io/v4/comments`,
+        `https://api.frame.io/v2/comments`,
         {
           asset_id: assetId,
           text: commentText
