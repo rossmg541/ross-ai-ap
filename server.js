@@ -15,9 +15,7 @@ const options = {
   useUnifiedTopology: true
 };
 
-// Frame.io OAuth token storage (in-memory for now)
-let frameioAccessToken = null;
-let frameioTokenExpiry = null;
+// Frame.io developer token is stored in environment variables
 
 // Log environment variable status on startup
 console.log('Environment variables check:');
@@ -465,87 +463,20 @@ app.post('/api/generate-campaign', async (req, res) => {
   }
 });
 
-// Helper function to get Frame.io OAuth access token
+// Helper function to get Frame.io access token (uses developer token directly)
 async function getFrameioAccessToken() {
-  // Check if we have a valid token
-  if (frameioAccessToken && frameioTokenExpiry && Date.now() < frameioTokenExpiry) {
-    return frameioAccessToken;
+  // Use developer token directly from environment variable
+  const devToken = process.env.FRAMEIO_DEV_TOKEN;
+
+  if (!devToken) {
+    throw new Error('Frame.io developer token not configured');
   }
 
-  // Get new token using client credentials
-  const clientId = process.env.FRAMEIO_CLIENT_ID;
-  const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Frame.io OAuth credentials not configured');
-  }
-
-  console.log('Requesting new Frame.io OAuth token...');
-
-  // Frame.io requires Basic Auth with client credentials
-  const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
-  const params = new URLSearchParams();
-  params.append('grant_type', 'client_credentials');
-
-  const tokenResponse = await axios.post(
-    'https://applications.frame.io/oauth2/token',
-    params,
-    {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${authString}`
-      }
-    }
-  );
-
-  frameioAccessToken = tokenResponse.data.access_token;
-  // Set expiry to 1 hour from now (Frame.io tokens typically last 1 hour)
-  frameioTokenExpiry = Date.now() + (3600 * 1000);
-
-  console.log('Frame.io OAuth token obtained successfully');
-  return frameioAccessToken;
+  console.log('Using Frame.io developer token');
+  return devToken;
 }
 
-// Frame.io OAuth callback endpoint
-app.get('/oauth/callback', async (req, res) => {
-  const { code } = req.query;
-
-  if (!code) {
-    return res.status(400).send('No authorization code provided');
-  }
-
-  try {
-    const clientId = process.env.FRAMEIO_CLIENT_ID;
-    const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
-    const redirectUri = `https://ross-ai-ap.onrender.com/oauth/callback`;
-
-    const params = new URLSearchParams();
-    params.append('grant_type', 'authorization_code');
-    params.append('code', code);
-    params.append('client_id', clientId);
-    params.append('client_secret', clientSecret);
-    params.append('redirect_uri', redirectUri);
-
-    const tokenResponse = await axios.post(
-      'https://applications.frame.io/oauth2/token',
-      params,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
-    );
-
-    frameioAccessToken = tokenResponse.data.access_token;
-    frameioTokenExpiry = Date.now() + (tokenResponse.data.expires_in * 1000);
-
-    res.send('Frame.io authorization successful! You can close this window.');
-  } catch (error) {
-    console.error('OAuth callback error:', error.response?.data || error.message);
-    res.status(500).send('OAuth authorization failed');
-  }
-});
+// Frame.io developer token is configured via environment variable FRAMEIO_DEV_TOKEN
 
 // Frame.io integration - Upload campaign to Frame.io for approval
 app.post('/api/upload-to-frameio', async (req, res) => {
