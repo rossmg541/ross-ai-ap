@@ -482,16 +482,17 @@ async function getFrameioAccessToken() {
 
   console.log('Requesting new Frame.io OAuth token...');
 
+  const params = new URLSearchParams();
+  params.append('grant_type', 'client_credentials');
+  params.append('client_id', clientId);
+  params.append('client_secret', clientSecret);
+
   const tokenResponse = await axios.post(
     'https://applications.frame.io/oauth2/token',
-    {
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret
-    },
+    params,
     {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       }
     }
   );
@@ -517,18 +518,19 @@ app.get('/oauth/callback', async (req, res) => {
     const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
     const redirectUri = `https://ross-ai-ap.onrender.com/oauth/callback`;
 
+    const params = new URLSearchParams();
+    params.append('grant_type', 'authorization_code');
+    params.append('code', code);
+    params.append('client_id', clientId);
+    params.append('client_secret', clientSecret);
+    params.append('redirect_uri', redirectUri);
+
     const tokenResponse = await axios.post(
       'https://applications.frame.io/oauth2/token',
-      {
-        grant_type: 'authorization_code',
-        code: code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri
-      },
+      params,
       {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
       }
     );
@@ -571,7 +573,7 @@ app.post('/api/upload-to-frameio', async (req, res) => {
       const folderName = `${campaign.substring(0, 30)} - ${marketName}`;
 
       const folderResponse = await axios.post(
-        'https://api.frame.io/v2/assets',
+        'https://api.frame.io/v4/assets',
         {
           name: folderName,
           type: 'folder',
@@ -595,7 +597,7 @@ app.post('/api/upload-to-frameio', async (req, res) => {
 
       // Step 3: Create the asset
       const assetResponse = await axios.post(
-        'https://api.frame.io/v2/assets',
+        'https://api.frame.io/v4/assets',
         {
           name: `${marketName}_variation.png`,
           type: 'file',
@@ -637,7 +639,7 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
 **Image Prompt:** ${variation.prompt}`;
 
       await axios.post(
-        `https://api.frame.io/v2/comments`,
+        `https://api.frame.io/v4/comments`,
         {
           asset_id: assetId,
           text: commentText
@@ -656,7 +658,7 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
         market: marketName,
         assetId: assetId,
         folderId: folderId,
-        url: `https://app.frame.io/player/${assetId}`
+        url: `https://next.frame.io/project/${projectId}`
       });
     }
 
@@ -665,7 +667,7 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
     res.json({
       success: true,
       uploads: uploadResults,
-      projectUrl: `https://app.frame.io/projects/${projectId}`
+      projectUrl: `https://next.frame.io/project/${projectId}`
     });
 
   } catch (error) {
