@@ -15,12 +15,17 @@ const options = {
   useUnifiedTopology: true
 };
 
+// Frame.io OAuth token storage (in-memory for now)
+let frameioAccessToken = null;
+let frameioTokenExpiry = null;
+
 // Log environment variable status on startup
 console.log('Environment variables check:');
 console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET');
 console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
 console.log('- IMAGE_API_KEY:', process.env.IMAGE_API_KEY ? 'SET' : 'NOT SET');
-console.log('- FRAMEIO_TOKEN:', process.env.FRAMEIO_TOKEN ? 'SET' : 'NOT SET');
+console.log('- FRAMEIO_CLIENT_ID:', process.env.FRAMEIO_CLIENT_ID ? 'SET' : 'NOT SET');
+console.log('- FRAMEIO_CLIENT_SECRET:', process.env.FRAMEIO_CLIENT_SECRET ? 'SET' : 'NOT SET');
 console.log('- FRAMEIO_PROJECT_ID:', process.env.FRAMEIO_PROJECT_ID ? 'SET' : 'NOT SET');
 
 app.use(cors({
@@ -460,18 +465,98 @@ app.post('/api/generate-campaign', async (req, res) => {
   }
 });
 
+// Helper function to get Frame.io OAuth access token
+async function getFrameioAccessToken() {
+  // Check if we have a valid token
+  if (frameioAccessToken && frameioTokenExpiry && Date.now() < frameioTokenExpiry) {
+    return frameioAccessToken;
+  }
+
+  // Get new token using client credentials
+  const clientId = process.env.FRAMEIO_CLIENT_ID;
+  const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Frame.io OAuth credentials not configured');
+  }
+
+  console.log('Requesting new Frame.io OAuth token...');
+
+  const tokenResponse = await axios.post(
+    'https://applications.frame.io/oauth2/token',
+    {
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  frameioAccessToken = tokenResponse.data.access_token;
+  // Set expiry to 1 hour from now (Frame.io tokens typically last 1 hour)
+  frameioTokenExpiry = Date.now() + (3600 * 1000);
+
+  console.log('Frame.io OAuth token obtained successfully');
+  return frameioAccessToken;
+}
+
+// Frame.io OAuth callback endpoint
+app.get('/oauth/callback', async (req, res) => {
+  const { code } = req.query;
+
+  if (!code) {
+    return res.status(400).send('No authorization code provided');
+  }
+
+  try {
+    const clientId = process.env.FRAMEIO_CLIENT_ID;
+    const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
+    const redirectUri = `https://ross-ai-ap.onrender.com/oauth/callback`;
+
+    const tokenResponse = await axios.post(
+      'https://applications.frame.io/oauth2/token',
+      {
+        grant_type: 'authorization_code',
+        code: code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    frameioAccessToken = tokenResponse.data.access_token;
+    frameioTokenExpiry = Date.now() + (tokenResponse.data.expires_in * 1000);
+
+    res.send('Frame.io authorization successful! You can close this window.');
+  } catch (error) {
+    console.error('OAuth callback error:', error.response?.data || error.message);
+    res.status(500).send('OAuth authorization failed');
+  }
+});
+
 // Frame.io integration - Upload campaign to Frame.io for approval
 app.post('/api/upload-to-frameio', async (req, res) => {
   try {
     const { variations, campaign, industry } = req.body;
-    const frameioToken = process.env.FRAMEIO_TOKEN;
     const projectId = process.env.FRAMEIO_PROJECT_ID;
 
-    if (!frameioToken || !projectId) {
+    if (!projectId) {
       return res.status(500).json({
-        error: 'Frame.io credentials not configured'
+        error: 'Frame.io project ID not configured'
       });
     }
+
+    // Get OAuth access token
+    const accessToken = await getFrameioAccessToken();
 
     console.log('Uploading to Frame.io project:', projectId);
 
@@ -494,7 +579,7 @@ app.post('/api/upload-to-frameio', async (req, res) => {
         },
         {
           headers: {
-            'Authorization': `Bearer ${frameioToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           }
         }
@@ -520,7 +605,7 @@ app.post('/api/upload-to-frameio', async (req, res) => {
         },
         {
           headers: {
-            'Authorization': `Bearer ${frameioToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           }
         }
@@ -559,7 +644,7 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
         },
         {
           headers: {
-            'Authorization': `Bearer ${frameioToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           }
         }
