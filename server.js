@@ -482,17 +482,19 @@ async function getFrameioAccessToken() {
 
   console.log('Requesting new Frame.io OAuth token...');
 
+  // Frame.io requires Basic Auth with client credentials
+  const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
   const params = new URLSearchParams();
   params.append('grant_type', 'client_credentials');
-  params.append('client_id', clientId);
-  params.append('client_secret', clientSecret);
 
   const tokenResponse = await axios.post(
     'https://applications.frame.io/oauth2/token',
     params,
     {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${authString}`
       }
     }
   );
