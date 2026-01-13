@@ -608,12 +608,16 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
+      headers: error.config?.headers,
+      url: error.config?.url,
+      data: error.config?.data,
       stack: error.stack
     });
     res.status(500).json({
       error: 'Failed to upload to Frame.io',
       details: error.response?.data || error.message,
-      status: error.response?.status
+      status: error.response?.status,
+      projectId: projectId
     });
   }
 });
