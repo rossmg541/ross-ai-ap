@@ -314,6 +314,7 @@ async function generateImageVariation(prompt, baseImageBase64) {
             referenceImages: [{
               referenceId: 1,
               referenceImage: {
+                imageType: 'image/jpeg',
                 bytesBase64Encoded: baseImageBase64
               }
             }]
