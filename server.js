@@ -4,6 +4,7 @@ import { OpenAI } from 'openai';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
+import axios from 'axios';
 dotenv.config();
 
 const app = express();
@@ -452,6 +453,138 @@ app.post('/api/generate-campaign', async (req, res) => {
     res.status(500).json({
       error: 'Failed to generate campaign variations',
       details: error.message
+    });
+  }
+});
+
+// Frame.io integration - Upload campaign to Frame.io for approval
+app.post('/api/upload-to-frameio', async (req, res) => {
+  try {
+    const { variations, campaign, industry } = req.body;
+    const frameioToken = process.env.FRAMEIO_TOKEN;
+    const projectId = process.env.FRAMEIO_PROJECT_ID;
+
+    if (!frameioToken || !projectId) {
+      return res.status(500).json({
+        error: 'Frame.io credentials not configured'
+      });
+    }
+
+    console.log('Uploading to Frame.io project:', projectId);
+
+    const uploadResults = [];
+
+    // Upload each variation to its own folder
+    for (const variation of variations) {
+      const marketName = variation.market;
+      console.log(`Processing upload for ${marketName}...`);
+
+      // Step 1: Create a folder for this market (if it doesn't exist)
+      const folderName = `${campaign.substring(0, 30)} - ${marketName}`;
+
+      const folderResponse = await axios.post(
+        'https://api.frame.io/v2/assets',
+        {
+          name: folderName,
+          type: 'folder',
+          parent_id: projectId
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${frameioToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const folderId = folderResponse.data.id;
+      console.log(`Created folder for ${marketName}: ${folderId}`);
+
+      // Step 2: Convert base64 image to buffer
+      const base64Data = variation.imageUrl.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      const filesize = imageBuffer.length;
+
+      // Step 3: Create the asset
+      const assetResponse = await axios.post(
+        'https://api.frame.io/v2/assets',
+        {
+          name: `${marketName}_variation.png`,
+          type: 'file',
+          filetype: 'image/png',
+          filesize: filesize,
+          parent_id: folderId
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${frameioToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const assetId = assetResponse.data.id;
+      const uploadUrls = assetResponse.data.upload_urls;
+
+      console.log(`Created asset for ${marketName}: ${assetId}`);
+
+      // Step 4: Upload the actual file
+      await axios.put(uploadUrls[0], imageBuffer, {
+        headers: {
+          'Content-Type': 'image/png'
+        }
+      });
+
+      console.log(`Uploaded image for ${marketName}`);
+
+      // Step 5: Add campaign details as a comment
+      const commentText = `**Campaign:** ${campaign}
+**Industry:** ${industry}
+**Market:** ${marketName}
+**Culture:** ${variation.culture}
+
+**Cultural Adaptations:**
+${variation.adaptations.map(a => `• ${a}`).join('\n')}
+
+**Image Prompt:** ${variation.prompt}`;
+
+      await axios.post(
+        `https://api.frame.io/v2/comments`,
+        {
+          asset_id: assetId,
+          text: commentText
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${frameioToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log(`Added comment to ${marketName} asset`);
+
+      uploadResults.push({
+        market: marketName,
+        assetId: assetId,
+        folderId: folderId,
+        url: `https://app.frame.io/player/${assetId}`
+      });
+    }
+
+    console.log('All uploads complete');
+
+    res.json({
+      success: true,
+      uploads: uploadResults,
+      projectUrl: `https://app.frame.io/projects/${projectId}`
+    });
+
+  } catch (error) {
+    console.error('Frame.io upload error:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to upload to Frame.io',
+      details: error.response?.data || error.message
     });
   }
 });
