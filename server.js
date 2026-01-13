@@ -463,17 +463,35 @@ app.post('/api/generate-campaign', async (req, res) => {
   }
 });
 
-// Helper function to get Frame.io access token (uses developer token directly)
+// Helper function to get Frame.io access token via Adobe IMS OAuth
 async function getFrameioAccessToken() {
-  // Use developer token directly from environment variable
-  const devToken = process.env.FRAMEIO_DEV_TOKEN;
+  const clientId = process.env.FRAMEIO_CLIENT_ID;
+  const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
 
-  if (!devToken) {
-    throw new Error('Frame.io developer token not configured');
+  if (!clientId || !clientSecret) {
+    throw new Error('Frame.io Adobe IMS OAuth credentials not configured');
   }
 
-  console.log('Using Frame.io developer token');
-  return devToken;
+  console.log('Requesting Adobe IMS OAuth token for Frame.io...');
+
+  // Adobe IMS OAuth token endpoint for Frame.io
+  const tokenResponse = await axios.post(
+    'https://ims-na1.adobelogin.com/ims/token/v3',
+    new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'openid,creative_sdk'
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+
+  console.log('Adobe IMS OAuth token obtained successfully');
+  return tokenResponse.data.access_token;
 }
 
 // Frame.io developer token is configured via environment variable FRAMEIO_DEV_TOKEN
