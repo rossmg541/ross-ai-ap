@@ -463,44 +463,27 @@ app.post('/api/generate-campaign', async (req, res) => {
   }
 });
 
-// Helper function to get Frame.io access token via Adobe IMS OAuth
+// Helper function to get Frame.io access token
+// For Frame.io v4, we'll use the developer token directly
+// Adobe IMS OAuth requires additional setup that isn't currently working
 async function getFrameioAccessToken() {
-  const clientId = process.env.FRAMEIO_CLIENT_ID;
-  const clientSecret = process.env.FRAMEIO_CLIENT_SECRET;
+  const devToken = process.env.FRAMEIO_DEV_TOKEN;
 
-  if (!clientId || !clientSecret) {
-    throw new Error('Frame.io Adobe IMS OAuth credentials not configured');
+  if (!devToken) {
+    throw new Error('Frame.io developer token not configured');
   }
 
-  console.log('Requesting Adobe IMS OAuth token for Frame.io...');
-
-  // Adobe IMS OAuth token endpoint for Frame.io
-  const tokenResponse = await axios.post(
-    'https://ims-na1.adobelogin.com/ims/token/v3',
-    new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-      scope: 'openid,creative_sdk'
-    }),
-    {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    }
-  );
-
-  console.log('Adobe IMS OAuth token obtained successfully');
-  return tokenResponse.data.access_token;
+  console.log('Using Frame.io developer token...');
+  return devToken;
 }
 
 // Frame.io developer token is configured via environment variable FRAMEIO_DEV_TOKEN
 
 // Frame.io integration - Upload campaign to Frame.io for approval
 app.post('/api/upload-to-frameio', async (req, res) => {
+  const projectId = process.env.FRAMEIO_PROJECT_ID; // Move outside try block for error handler
   try {
     const { variations, campaign, industry } = req.body;
-    const projectId = process.env.FRAMEIO_PROJECT_ID;
 
     if (!projectId) {
       return res.status(500).json({
