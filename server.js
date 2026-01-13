@@ -19,6 +19,9 @@ const options = {
 console.log('Environment variables check:');
 console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET');
 console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
+console.log('- IMAGE_API_KEY:', process.env.IMAGE_API_KEY ? 'SET' : 'NOT SET');
+console.log('- FRAMEIO_TOKEN:', process.env.FRAMEIO_TOKEN ? 'SET' : 'NOT SET');
+console.log('- FRAMEIO_PROJECT_ID:', process.env.FRAMEIO_PROJECT_ID ? 'SET' : 'NOT SET');
 
 app.use(cors({
   origin: ['http://localhost:3000', 'https://ai.rossmguthrie.com', 'http://ai.rossmguthrie.com'],
@@ -581,10 +584,16 @@ ${variation.adaptations.map(a => `• ${a}`).join('\n')}
     });
 
   } catch (error) {
-    console.error('Frame.io upload error:', error.response?.data || error.message);
+    console.error('Frame.io upload error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      stack: error.stack
+    });
     res.status(500).json({
       error: 'Failed to upload to Frame.io',
-      details: error.response?.data || error.message
+      details: error.response?.data || error.message,
+      status: error.response?.status
     });
   }
 });
