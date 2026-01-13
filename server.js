@@ -495,23 +495,39 @@ app.post('/api/upload-to-frameio', async (req, res) => {
 
     console.log('Uploading to Frame.io project:', projectId);
 
-    // First, verify we can access the project
+    // First, try to get account/team info to understand the v4 structure
     try {
-      const projectResponse = await axios.get(
-        `https://api.frame.io/v2/projects/${projectId}`,
+      const meResponse = await axios.get(
+        'https://api.frame.io/v2/me',
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
         }
       );
-      console.log('Project access verified:', projectResponse.data.name);
+      console.log('User account info:', {
+        id: meResponse.data.id,
+        email: meResponse.data.email,
+        account_id: meResponse.data.account_id
+      });
+
+      // Try to get the root asset for the project (v4 uses different structure)
+      const rootResponse = await axios.get(
+        `https://api.frame.io/v2/assets/${projectId}/children`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+      console.log('Project root asset access verified, children count:', rootResponse.data.length);
     } catch (verifyError) {
       console.error('Cannot access project:', verifyError.response?.data);
       return res.status(403).json({
         error: 'Cannot access Frame.io project',
         details: verifyError.response?.data,
-        projectId: projectId
+        projectId: projectId,
+        suggestion: 'The project ID might be incorrect, or the token may not have access to this project'
       });
     }
 
